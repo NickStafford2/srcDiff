@@ -1,4 +1,8 @@
-# general
+# Build
+build/
+profile-build/
+
+# General
 CMakeUserPresets.json
 *~
 \#*\#
