@@ -17,7 +17,17 @@ namespace srcdiff {
 ses::edit_list shortest_edit_script_utility::compute(const std::shared_ptr<construct>& original, const std::shared_ptr<construct>& modified) {
 
   ses::shortest_edit_script edit_script_computer(node_compare, construct_node_index, nullptr);
-  return edit_script_computer.compute((const void *)&original, original->size(), (const void *)&modified, modified->size());
+  return edit_script_computer.compute((const void *)&original, original->size(),
+                                      (const void *)&modified, modified->size());
+}
+
+ses::edit_list shortest_edit_script_utility::compute_profiled(const std::shared_ptr<construct>& original,
+                                                              const std::shared_ptr<construct>& modified,
+                                                              struct ses_profile * profile) {
+
+  ses::shortest_edit_script edit_script_computer(node_compare, construct_node_index, nullptr);
+  return edit_script_computer.compute_profiled((const void *)&original, original->size(),
+                                               (const void *)&modified, modified->size(), profile);
 }
 
 ses::edit_list shortest_edit_script_utility::compute(const construct::construct_list_view original, const construct::construct_list_view modified) {

@@ -24,9 +24,10 @@
 
   Returns Then number of edits or an error code (-1 malloc, -2 otherwise) 
 */
-int shortest_edit_script_inner(const void * sequence_one, int sequence_one_start, int sequence_one_end, const void * sequence_two, int sequence_two_start, int sequence_two_end,
+int shortest_edit_script_inner_profiled(const void * sequence_one, int sequence_one_start, int sequence_one_end, const void * sequence_two, int sequence_two_start, int sequence_two_end,
   struct edit_t ** edit_script, struct edit_t ** last_edit,
-  int compare(const void *, const void *, const void *), const void * accessor(int index, const void *, const void *), const void * context) {
+  int compare(const void *, const void *, const void *), const void * accessor(int index, const void *, const void *), const void * context,
+  struct ses_profile * profile) {
 
   // max edit distance
   int max_distance = (sequence_one_end - sequence_one_start) + (sequence_two_end - sequence_two_start) + 1;
@@ -144,9 +145,16 @@ int shortest_edit_script_inner(const void * sequence_one, int sequence_one_start
 
       // reached lower right (finished)
       if(column == sequence_one_end && row == sequence_two_end) {
+        if(profile) {
+          unsigned long previous = (unsigned long)(distance - 1) * (unsigned long)(distance + 2) / 2;
+          unsigned long processed = (unsigned long)((diagonal + distance) / 2 + 1);
+          profile->frontier_steps += previous + processed;
+        }
 
         // make shortest edit script
+        if(profile && profile->record_event) profile->record_event(profile->context, SES_PROFILE_RECONSTRUCTION_BEGIN);
         int edit_distance = make_edit_script(&edit_pointers[edit_array][edit], edit_script, last_edit);
+        if(profile && profile->record_event) profile->record_event(profile->context, SES_PROFILE_RECONSTRUCTION_END);
 
         free(last_distance);
 
@@ -186,6 +194,15 @@ int shortest_edit_script_inner(const void * sequence_one, int sequence_one_start
   (*last_edit) = NULL;
 
   return -2;
+}
+
+int shortest_edit_script_inner(const void * sequence_one, int sequence_one_start, int sequence_one_end, const void * sequence_two, int sequence_two_start, int sequence_two_end,
+  struct edit_t ** edit_script, struct edit_t ** last_edit,
+  int compare(const void *, const void *, const void *), const void * accessor(int index, const void *, const void *), const void * context) {
+
+  return shortest_edit_script_inner_profiled(sequence_one, sequence_one_start, sequence_one_end,
+    sequence_two, sequence_two_start, sequence_two_end, edit_script, last_edit,
+    compare, accessor, context, NULL);
 }
 
 int shortest_edit_script(const void * sequence_one, int sequence_one_end, const void * sequence_two, int sequence_two_end,

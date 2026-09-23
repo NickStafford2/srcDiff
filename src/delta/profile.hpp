@@ -98,10 +98,26 @@ public:
                        std::size_t original_terms,
                        std::size_t modified_terms,
                        std::size_t edit_distance,
-                       clock::duration elapsed) {
+                       clock::duration elapsed,
+                       clock::duration search_elapsed,
+                       clock::duration reconstruction_elapsed,
+                       std::size_t frontier_steps) {
     add(important_only ? profile_phase::text_ses_important
                        : profile_phase::text_ses_complete,
         elapsed);
+    const double search_milliseconds =
+      std::chrono::duration<double, std::milli>(search_elapsed).count();
+    const double reconstruction_milliseconds =
+      std::chrono::duration<double, std::milli>(reconstruction_elapsed).count();
+    if(important_only) {
+      text_ses_important_search_ms_ += search_milliseconds;
+      text_ses_important_reconstruction_ms_ += reconstruction_milliseconds;
+      text_ses_important_frontier_steps_ += frontier_steps;
+    } else {
+      text_ses_complete_search_ms_ += search_milliseconds;
+      text_ses_complete_reconstruction_ms_ += reconstruction_milliseconds;
+      text_ses_complete_frontier_steps_ += frontier_steps;
+    }
     if(important_only) return;
 
     const double milliseconds =
@@ -143,6 +159,12 @@ public:
               << "profile.delta.text_ses_ms=" << text_ses_ms_ << '\n'
               << "profile.delta.text_ses_important_ms=" << text_ses_important_ms_ << '\n'
               << "profile.delta.text_ses_complete_ms=" << text_ses_complete_ms_ << '\n'
+              << "profile.delta.text_ses_important_search_ms=" << text_ses_important_search_ms_ << '\n'
+              << "profile.delta.text_ses_important_reconstruction_ms=" << text_ses_important_reconstruction_ms_ << '\n'
+              << "profile.delta.text_ses_important_frontier_steps=" << text_ses_important_frontier_steps_ << '\n'
+              << "profile.delta.text_ses_complete_search_ms=" << text_ses_complete_search_ms_ << '\n'
+              << "profile.delta.text_ses_complete_reconstruction_ms=" << text_ses_complete_reconstruction_ms_ << '\n'
+              << "profile.delta.text_ses_complete_frontier_steps=" << text_ses_complete_frontier_steps_ << '\n'
               << "profile.delta.syntax_ses_ms=" << syntax_ses_ms_ << '\n'
               << "profile.delta.top_level_original=" << top_level_original_ << '\n'
               << "profile.delta.top_level_modified=" << top_level_modified_ << '\n'
@@ -188,6 +210,12 @@ private:
   double text_ses_ms_ = 0.0;
   double text_ses_important_ms_ = 0.0;
   double text_ses_complete_ms_ = 0.0;
+  double text_ses_important_search_ms_ = 0.0;
+  double text_ses_important_reconstruction_ms_ = 0.0;
+  std::size_t text_ses_important_frontier_steps_ = 0;
+  double text_ses_complete_search_ms_ = 0.0;
+  double text_ses_complete_reconstruction_ms_ = 0.0;
+  std::size_t text_ses_complete_frontier_steps_ = 0;
   double syntax_ses_ms_ = 0.0;
   std::size_t files_processed_ = 0;
   std::size_t top_level_original_ = 0;

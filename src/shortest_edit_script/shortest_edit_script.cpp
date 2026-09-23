@@ -30,13 +30,24 @@ size_t shortest_edit_script::get_size_threshold() {
 }
 
 edit_list shortest_edit_script::compute(const void* structure_one, int size_one, const void* structure_two, int size_two) {
+  return compute_impl(structure_one, size_one, structure_two, size_two, nullptr);
+}
+
+edit_list shortest_edit_script::compute_profiled(const void* structure_one, int size_one, const void* structure_two, int size_two,
+                                                 struct ses_profile* profile) {
+  return compute_impl(structure_one, size_one, structure_two, size_two, profile);
+}
+
+edit_list shortest_edit_script::compute_impl(const void* structure_one, int size_one, const void* structure_two, int size_two,
+                                             struct ses_profile* profile) {
   edit_t* edit_script = nullptr;
-  int distance = shortest_edit_script_hybrid(structure_one, size_one, structure_two, size_two, &edit_script,
+  int distance = shortest_edit_script_hybrid_profiled(structure_one, size_one, structure_two, size_two, &edit_script,
                                      *compare.target<int (*)(void const*, void const*, void const*)>(),
                                      *accessor.target<void const* (*)(int, void const*, void const*)>(),
-                                     context, threshold);
+                                     context, threshold, profile);
   if(distance < 0) throw std::logic_error("Error computing shortest edit script");
 
+  if(profile && profile->record_event) profile->record_event(profile->context, SES_PROFILE_RECONSTRUCTION_BEGIN);
   edit_list edits;
   for(edit_t* edit = edit_script; edit != nullptr; edit = edit->next) {
     if(is_change(edit)) {
@@ -55,6 +66,7 @@ edit_list shortest_edit_script::compute(const void* structure_one, int size_one,
   }
 
   free_shortest_edit_script(edit_script);
+  if(profile && profile->record_event) profile->record_event(profile->context, SES_PROFILE_RECONSTRUCTION_END);
 
   return edits;
 }

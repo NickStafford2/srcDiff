@@ -141,8 +141,9 @@ struct point compute_next_reverse_path_snake(const void * sequence_one, int sequ
 
 }
 
-int compute_middle_snake(const void * sequence_one, int sequence_one_start, int sequence_one_end, const void * sequence_two, int sequence_two_start, int sequence_two_end, struct point points[2],
-  int compare(const void *, const void *, const void *), const void * accessor(int index, const void *, const void *), const void * context) {
+int compute_middle_snake_profiled(const void * sequence_one, int sequence_one_start, int sequence_one_end, const void * sequence_two, int sequence_two_start, int sequence_two_end, struct point points[2],
+  int compare(const void *, const void *, const void *), const void * accessor(int index, const void *, const void *), const void * context,
+  struct ses_profile * profile) {
 
   // compute delta
   int delta = (sequence_one_end - sequence_one_start) - (sequence_two_end - sequence_two_start);
@@ -193,6 +194,12 @@ int compute_middle_snake(const void * sequence_one, int sequence_one_start, int 
         points[0] = start_snake;
         points[1] = end_snake;
 
+        if(profile) {
+          unsigned long previous = (unsigned long)distance * (unsigned long)(distance + 1);
+          unsigned long processed = (unsigned long)((distance - diagonal) / 2 + 1);
+          profile->frontier_steps += previous + processed;
+        }
+
         free(forward_paths);
         free(reverse_paths);
 
@@ -226,6 +233,13 @@ int compute_middle_snake(const void * sequence_one, int sequence_one_start, int 
         points[0] = start_snake;
         points[1] = end_snake;
 
+        if(profile) {
+          unsigned long previous = (unsigned long)distance * (unsigned long)(distance + 1);
+          unsigned long forward = (unsigned long)(distance + 1);
+          unsigned long processed = (unsigned long)((distance - diagonal) / 2 + 1);
+          profile->frontier_steps += previous + forward + processed;
+        }
+
         free(forward_paths);
         free(reverse_paths);
 
@@ -241,6 +255,13 @@ int compute_middle_snake(const void * sequence_one, int sequence_one_start, int 
 
   return -2;
 
+}
+
+int compute_middle_snake(const void * sequence_one, int sequence_one_start, int sequence_one_end, const void * sequence_two, int sequence_two_start, int sequence_two_end, struct point points[2],
+  int compare(const void *, const void *, const void *), const void * accessor(int index, const void *, const void *), const void * context) {
+
+  return compute_middle_snake_profiled(sequence_one, sequence_one_start, sequence_one_end,
+    sequence_two, sequence_two_start, sequence_two_end, points, compare, accessor, context, NULL);
 }
 
 /*

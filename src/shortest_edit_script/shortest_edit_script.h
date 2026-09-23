@@ -31,6 +31,19 @@ struct edit_t {
 
 };
 
+enum ses_profile_event {
+  SES_PROFILE_RECONSTRUCTION_BEGIN,
+  SES_PROFILE_RECONSTRUCTION_END
+};
+
+struct ses_profile {
+  // Called around explicit edit-chain reconstruction; may be NULL.
+  void (*record_event)(void * context, enum ses_profile_event event);
+  void * context;
+  // Caller initializes this counter to zero.
+  unsigned long frontier_steps;
+};
+
 /*
   Finds the shortest edit script between two sequences.
 
@@ -52,6 +65,10 @@ int shortest_edit_script_hybrid(const void * sequence_one, int sequence_one_end,
   struct edit_t ** edit_script,
   int compare(const void *, const void *, const void *), const void * accessor(int index, const void *, const void *), const void * context,
   int threshold);
+int shortest_edit_script_hybrid_profiled(const void * sequence_one, int sequence_one_end, const void * sequence_two, int sequence_two_end,
+  struct edit_t ** edit_script,
+  int compare(const void *, const void *, const void *), const void * accessor(int index, const void *, const void *), const void * context,
+  int threshold, struct ses_profile * profile);
 
 /*
   Free the memory in a shortest edit script.

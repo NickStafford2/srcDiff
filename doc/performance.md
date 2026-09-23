@@ -16,7 +16,9 @@ delta computation, serialization, archive writing, and total runtime. Focused
 delta metrics cover structural shortest-edit scripts, edit correction, move
 detection, change matching, nesting, and text/syntax shortest-edit scripts.
 Text SES metrics retain an aggregate and also separate important-text
-measurements from complete-text measurements.
+measurements from complete-text measurements. The profiler further separates
+SES search/frontier work from explicit edit-script reconstruction and counts
+the frontier diagonals examined.
 
 The profiler also reports scale counters for files, top-level constructs,
 change matrices, measurement-cache use, shortest-edit-script inputs, and
@@ -138,6 +140,39 @@ to the longer sequence length. The next profiling question is therefore not
 which file pair is anomalous, but which SES algorithm path handles these
 highly unbalanced, high-distance sequences and how its work scales with
 sequence length and edit distance.
+
+### SES search and reconstruction follow-up
+
+A third profiling-only follow-up split each text SES computation into search
+and explicit reconstruction. Reconstruction includes compacting the C edit
+chain, converting it to the C++ edit list, and freeing the C chain. Search is
+the remaining SES computation time, including frontier traversal, temporary
+allocation and cleanup, and edit-node construction performed during hybrid
+recursion. `frontier_steps` counts diagonal expansions rather than element
+comparisons or matrix cells. The existing `text_ses_*_ms` timers also include
+the later `process_edit_script()` call, so they are intentionally slightly
+larger than search plus reconstruction. Reconstruction totals include the
+fine-grained clock-read overhead and are therefore conservative at this scale.
+
+The same three inputs were measured after one warmup followed by nine runs.
+The rebuilt binary SHA-256 was
+`e59623a0efbd11fa28567962e7f2a67d1e74b963573b4b19729f88b28467dd93`.
+The table contains medians.
+
+| Case | Important search | Important reconstruction | Important frontier steps | Complete search | Complete reconstruction | Complete frontier steps |
+|---|---:|---:|---:|---:|---:|---:|
+| weak target | 22.142 ms | 0.249 ms | 596,076 | 24.089 ms | 0.116 ms | 1,616,030 |
+| size-matched strong control | 23.343 ms | 0.288 ms | 620,520 | 74.032 ms | 0.773 ms | 1,954,334 |
+| small baseline | 0.096 ms | 0.004 ms | 3,874 | 0.447 ms | 0.010 ms | 14,794 |
+
+Search dominates both text paths in every case; explicit reconstruction is at
+most about 5% of their combined measured SES time and is about 1% or less for
+the two large complete-text cases. The control performs about 21% more complete-text
+frontier steps than the weak case but takes about three times as long in that
+phase, so the diagonal count alone does not explain runtime. The next narrow
+question is which part of frontier processing accounts for that per-step gap:
+element comparison and diagonal sliding, or frontier allocation and update
+overhead. That distinction should be measured before changing the algorithm.
 
 ## Pipeline and cost model
 

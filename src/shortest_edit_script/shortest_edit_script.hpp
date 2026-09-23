@@ -50,6 +50,12 @@ public:
 
 
   virtual edit_list compute(const void * structure_one, int size_one, const void * structure_two, int size_two);
+  edit_list compute_profiled(const void * structure_one, int size_one, const void * structure_two, int size_two,
+                             struct ses_profile * profile);
+
+private:
+  edit_list compute_impl(const void * structure_one, int size_one, const void * structure_two, int size_two,
+                         struct ses_profile * profile);
 
 };
 

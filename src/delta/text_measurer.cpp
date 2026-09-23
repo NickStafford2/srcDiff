@@ -19,6 +19,24 @@
 
 namespace srcdiff {
 
+namespace {
+
+struct ses_profile_timing {
+  profiler::clock::duration reconstruction{};
+  profiler::clock::time_point reconstruction_start;
+};
+
+void record_ses_profile_event(void * context, enum ses_profile_event event) {
+  auto& timing = *static_cast<ses_profile_timing *>(context);
+  if(event == SES_PROFILE_RECONSTRUCTION_BEGIN) {
+    timing.reconstruction_start = profiler::clock::now();
+  } else {
+    timing.reconstruction += profiler::clock::now() - timing.reconstruction_start;
+  }
+}
+
+}
+
 text_measurer::text_measurer(const construct & set_original, const construct & set_modified, bool important_only) 
   : measurer(set_original, set_modified),
     set_original_text(std::make_shared<construct>(set_original.nodes())),
@@ -181,19 +199,34 @@ void text_measurer::compute() {
 
   const bool profiling = profiler::instance().enabled();
   profiler::clock::time_point profile_start;
+  profiler::clock::time_point ses_start;
+  profiler::clock::duration ses_elapsed{};
+  ses_profile_timing ses_timing;
+  struct ses_profile ses_profile_data = { record_ses_profile_event, &ses_timing, 0 };
   if(profiling) {
     profiler::instance().text_ses_call(important_only, set_original_text->size(), set_modified_text->size());
     profile_start = profiler::clock::now();
+    ses_start = profile_start;
   }
 
-  process_edit_script(shortest_edit_script_utility::compute(set_original_text, set_modified_text));
+  const auto edits = profiling
+    ? shortest_edit_script_utility::compute_profiled(set_original_text, set_modified_text, &ses_profile_data)
+    : shortest_edit_script_utility::compute(set_original_text, set_modified_text);
+  if(profiling) ses_elapsed = profiler::clock::now() - ses_start;
+  process_edit_script(edits);
 
   if(profiling) {
+    const auto search_elapsed = ses_elapsed > ses_timing.reconstruction
+      ? ses_elapsed - ses_timing.reconstruction
+      : profiler::clock::duration::zero();
     profiler::instance().finish_text_ses(important_only,
                                          set_original_text->size(),
                                          set_modified_text->size(),
                                          difference(),
-                                         profiler::clock::now() - profile_start);
+                                         profiler::clock::now() - profile_start,
+                                         search_elapsed,
+                                         ses_timing.reconstruction,
+                                         ses_profile_data.frontier_steps);
   }
 }
 

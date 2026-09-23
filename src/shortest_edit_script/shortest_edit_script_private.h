@@ -25,6 +25,9 @@ int merge_sequential_edits(struct edit_t ** edit_script);
 
 int compute_middle_snake(const void * sequence_one, int sequence_one_start, int sequence_one_end, const void * sequence_two, int sequence_two_start, int sequence_two_end, struct point points[2],
   int compare(const void *, const void *, const void *), const void * accessor(int index, const void *, const void *), const void * context);
+int compute_middle_snake_profiled(const void * sequence_one, int sequence_one_start, int sequence_one_end, const void * sequence_two, int sequence_two_start, int sequence_two_end, struct point points[2],
+  int compare(const void *, const void *, const void *), const void * accessor(int index, const void *, const void *), const void * context,
+  struct ses_profile * profile);
 
 int shortest_edit_script_linear_space_inner(const void * sequence_one, int sequence_one_start, int sequence_one_end, const void * sequence_two, int sequence_two_start, int sequence_two_end,
   struct edit_t ** edit_script, struct edit_t ** last_edit,
@@ -43,3 +46,7 @@ int make_edit_script(struct edit_t * start_edit, struct edit_t ** edit_script, s
 int shortest_edit_script_inner(const void * sequence_one, int sequence_one_start, int sequence_one_end, const void * sequence_two, int sequence_two_start, int sequence_two_end,
   struct edit_t ** edit_script, struct edit_t ** last_edit,
   int compare(const void *, const void *, const void *), const void * accessor(int index, const void *, const void *), const void * context);
+int shortest_edit_script_inner_profiled(const void * sequence_one, int sequence_one_start, int sequence_one_end, const void * sequence_two, int sequence_two_start, int sequence_two_end,
+  struct edit_t ** edit_script, struct edit_t ** last_edit,
+  int compare(const void *, const void *, const void *), const void * accessor(int index, const void *, const void *), const void * context,
+  struct ses_profile * profile);

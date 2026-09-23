@@ -11,6 +11,7 @@
 #define INCLUDED_SHORTEST_EDIT_SCRIPT_UTILITIES_HPP
 
 #include <edit_list.hpp>
+#include <shortest_edit_script.h>
 
 #include <construct.hpp>
 
@@ -22,6 +23,9 @@ namespace srcdiff {
 class shortest_edit_script_utility {
 public:
     static ses::edit_list compute(const std::shared_ptr<construct>& original,    const std::shared_ptr<construct>& modified);
+    static ses::edit_list compute_profiled(const std::shared_ptr<construct>& original,
+                                           const std::shared_ptr<construct>& modified,
+                                           struct ses_profile * profile);
     static ses::edit_list compute(const construct::construct_list_view original, const construct::construct_list_view modified);
     static ses::edit_list compute(const std::vector<std::string>& original,      const std::vector<std::string>& modified);
     static ses::edit_list compute(const std::string& original,                   const std::string& modified);

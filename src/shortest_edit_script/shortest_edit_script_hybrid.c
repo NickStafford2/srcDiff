@@ -32,7 +32,7 @@
 int shortest_edit_script_hybrid_inner(const void * sequence_one, int sequence_one_start, int sequence_one_end, const void * sequence_two, int sequence_two_start, int sequence_two_end,
   struct edit_t ** edit_script, struct edit_t ** last_edit,
   int compare(const void *, const void *, const void *), const void * accessor(int index, const void *, const void *), const void * context,
-  int threshold) {  
+  int threshold, struct ses_profile * profile) {
 
   if(edit_script) (*edit_script) = 0;
   if(last_edit) (*last_edit) = 0;
@@ -41,7 +41,7 @@ int shortest_edit_script_hybrid_inner(const void * sequence_one, int sequence_on
   if((sequence_one_end - sequence_one_start) > 0 && (sequence_two_end - sequence_two_start) > 0) {
 
     struct point points[2];
-    edit_distance = compute_middle_snake(sequence_one, sequence_one_start, sequence_one_end, sequence_two, sequence_two_start, sequence_two_end, points, compare, accessor, context);
+    edit_distance = compute_middle_snake_profiled(sequence_one, sequence_one_start, sequence_one_end, sequence_two, sequence_two_start, sequence_two_end, points, compare, accessor, context, profile);
     // what does -2 mean here
     if(edit_distance == -2) { /*fprintf(stderr, "HERE: %s %s %d '%s'\n", __FILE__, __FUNCTION__, __LINE__, "Possible Error");*/ exit(-2); } 
 
@@ -50,10 +50,10 @@ int shortest_edit_script_hybrid_inner(const void * sequence_one, int sequence_on
       struct edit_t * previous_edits = 0;
       struct edit_t * previous_last_edit = 0;
       if(edit_distance < threshold) {
-        shortest_edit_script_inner(sequence_one, sequence_one_start, points[0].x, sequence_two, sequence_two_start, points[0].y, &previous_edits, &previous_last_edit, compare, accessor, context);
+        shortest_edit_script_inner_profiled(sequence_one, sequence_one_start, points[0].x, sequence_two, sequence_two_start, points[0].y, &previous_edits, &previous_last_edit, compare, accessor, context, profile);
       }
       else {
-        shortest_edit_script_hybrid_inner(sequence_one, sequence_one_start, points[0].x, sequence_two, sequence_two_start, points[0].y, &previous_edits, &previous_last_edit, compare, accessor, context, threshold);
+        shortest_edit_script_hybrid_inner(sequence_one, sequence_one_start, points[0].x, sequence_two, sequence_two_start, points[0].y, &previous_edits, &previous_last_edit, compare, accessor, context, threshold, profile);
       }
 
       if(edit_script) (*edit_script) = previous_edits;
@@ -61,10 +61,10 @@ int shortest_edit_script_hybrid_inner(const void * sequence_one, int sequence_on
       struct edit_t * new_edits = 0;
       struct edit_t * next_last_edit = 0;
       if(edit_distance < threshold) {
-        shortest_edit_script_inner(sequence_one, points[1].x, sequence_one_end, sequence_two, points[1].y, sequence_two_end, &new_edits, &next_last_edit, compare, accessor, context);
+        shortest_edit_script_inner_profiled(sequence_one, points[1].x, sequence_one_end, sequence_two, points[1].y, sequence_two_end, &new_edits, &next_last_edit, compare, accessor, context, profile);
       }
       else {
-        shortest_edit_script_hybrid_inner(sequence_one, points[1].x, sequence_one_end, sequence_two, points[1].y, sequence_two_end, &new_edits, &next_last_edit, compare, accessor, context, threshold);
+        shortest_edit_script_hybrid_inner(sequence_one, points[1].x, sequence_one_end, sequence_two, points[1].y, sequence_two_end, &new_edits, &next_last_edit, compare, accessor, context, threshold, profile);
       }
 
       previous_last_edit->next = new_edits;
@@ -170,10 +170,10 @@ int shortest_edit_script_hybrid_inner(const void * sequence_one, int sequence_on
 
 }
 
-int shortest_edit_script_hybrid(const void * sequence_one, int sequence_one_end, const void * sequence_two, int sequence_two_end,
+int shortest_edit_script_hybrid_profiled(const void * sequence_one, int sequence_one_end, const void * sequence_two, int sequence_two_end,
   struct edit_t ** edit_script,
   int compare(const void *, const void *, const void *), const void * accessor(int index, const void *, const void *), const void * context,
-  int threshold) { 
+  int threshold, struct ses_profile * profile) {
 
   int sequence_one_start = 0, sequence_two_start = 0;
   while(sequence_one_start < sequence_one_end && sequence_two_start < sequence_two_end 
@@ -187,16 +187,27 @@ int shortest_edit_script_hybrid(const void * sequence_one, int sequence_one_end,
   int max_distance = ceil(((sequence_one_end - sequence_one_start) + (sequence_two_end - sequence_two_start)) / 2.0) * 2;
 
   if(max_distance < threshold) {
-    shortest_edit_script_inner(sequence_one, sequence_one_start, sequence_one_end, sequence_two, sequence_two_start, sequence_two_end, edit_script, 0,
-      compare, accessor, context);
+    shortest_edit_script_inner_profiled(sequence_one, sequence_one_start, sequence_one_end, sequence_two, sequence_two_start, sequence_two_end, edit_script, 0,
+      compare, accessor, context, profile);
   }
   else {
     shortest_edit_script_hybrid_inner(sequence_one, sequence_one_start, sequence_one_end, sequence_two, sequence_two_start, sequence_two_end, edit_script, 0,
-      compare, accessor, context, threshold);
+      compare, accessor, context, threshold, profile);
   }
 
+  if(profile && profile->record_event) profile->record_event(profile->context, SES_PROFILE_RECONSTRUCTION_BEGIN);
   int edit_distance = merge_sequential_edits(edit_script);
+  if(profile && profile->record_event) profile->record_event(profile->context, SES_PROFILE_RECONSTRUCTION_END);
 
   return edit_distance;
 
+}
+
+int shortest_edit_script_hybrid(const void * sequence_one, int sequence_one_end, const void * sequence_two, int sequence_two_end,
+  struct edit_t ** edit_script,
+  int compare(const void *, const void *, const void *), const void * accessor(int index, const void *, const void *), const void * context,
+  int threshold) {
+
+  return shortest_edit_script_hybrid_profiled(sequence_one, sequence_one_end, sequence_two, sequence_two_end,
+    edit_script, compare, accessor, context, threshold, NULL);
 }
