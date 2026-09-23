@@ -18,8 +18,22 @@ detection, change matching, nesting, and text/syntax shortest-edit scripts.
 
 The profiler also reports scale counters for files, top-level constructs,
 change matrices, measurement-cache use, shortest-edit-script inputs, and
-nesting checks. Timers nested inside `change_matcher` overlap its inclusive
-time and must not be added to it.
+nesting checks. `profile.pipeline.total_ms` is inclusive wall time.
+`profile.delta.total_ms` subtracts the measured serialization calls from the
+inclusive delta scope so that delta and serialization can be compared as major
+phases. The focused delta timers are inclusive operation timers: text SES and
+nesting can overlap `change_matcher`, and text SES can also overlap nesting.
+They must not be added together.
+
+The aggregates are intentionally unsynchronized. This is safe in the current
+execution model because the main thread creates and immediately joins each
+conversion thread, and all profiler mutations occur on the main thread. Any
+future concurrent file differencing or instrumentation inside worker threads
+must use per-thread data followed by a merge, or add synchronization. The
+fine-grained serialization timer also reads the clock once per emitted node
+when profiling is enabled, so profiled wall time includes some measurement
+overhead. Disabled runs perform only the profiler-enabled checks at those
+sites.
 
 ## 2026-09-23 retained-case profile
 
@@ -49,11 +63,12 @@ move detection were each below 1 ms. The representative cases therefore point
 to text measurement, not the top-level change matrix, as the leading operation.
 
 Each case made four `change_matcher` calls, but every matrix was only 1-by-1:
-four cells and 112 allocated bytes in total. Those four cells caused eight text
-SES calls, four measurement-cache misses, and four hits. The maximum recorded
-text-sequence product was 17,568 terms for the weak case, 12,072 for the
-control, and 1,176 for the baseline. The matrix remains a credible scaling risk
-on other inputs, but it did not explain these timings.
+four cells and 112 allocated bytes in total. The same runs recorded eight text
+SES calls, four measurement-cache misses, and four hits, consistent with the
+important-text and complete-text measurements reached while evaluating those
+cells. The maximum recorded text-sequence product was 17,568 terms for the weak
+case, 12,072 for the control, and 1,176 for the baseline. The matrix remains a
+credible scaling risk on other inputs, but it did not explain these timings.
 
 The change matrix requires time and space proportional to the product of the
 unmatched construct counts, in addition to the cost of measuring each cell.
