@@ -15,6 +15,8 @@ coarse metrics separate original and modified input conversion/materialization,
 delta computation, serialization, archive writing, and total runtime. Focused
 delta metrics cover structural shortest-edit scripts, edit correction, move
 detection, change matching, nesting, and text/syntax shortest-edit scripts.
+Text SES metrics retain an aggregate and also separate important-text
+measurements from complete-text measurements.
 
 The profiler also reports scale counters for files, top-level constructs,
 change matrices, measurement-cache use, shortest-edit-script inputs, and
@@ -85,10 +87,57 @@ cases.
 
 The narrow optimization target for a later task is the complete-text SES path
 entered by `check_match()` through `construct::is_match_similar()` and
-`text_measurer::compute()`. Before changing it, distinguish important-text and
-complete-text calls and test a semantics-preserving reuse or rejection fast
-path. Do not weaken matching thresholds or replace the exact result with an
-approximation.
+`text_measurer::compute()`. Do not weaken matching thresholds or replace the
+exact result with an approximation.
+
+### Text SES split follow-up
+
+A profiling-only follow-up split the eight text SES calls into the cached
+important-text measurement and the complete-text measurement. It used the same
+three inputs and one-warmup-plus-nine-measurement procedure. The rebuilt binary
+SHA-256 was
+`5c1a7346013b3251d977b43ef3a41552c3c878e9799f4297da840a8a473bb73e`.
+Absolute times came from a separate run and should not be compared directly to
+the earlier table; the comparison within each row is the relevant result.
+
+| Case | Important calls | Important SES | Important terms (original / modified) | Complete calls | Complete SES | Complete terms (original / modified) |
+|---|---:|---:|---:|---:|---:|---:|
+| weak target | 4 | 55.615 ms | 1,562 / 216 | 4 | 60.162 ms | 2,948 / 366 |
+| size-matched strong control | 4 | 56.647 ms | 1,136 / 1,152 | 4 | 185.822 ms | 2,006 / 2,032 |
+| small baseline | 4 | 0.218 ms | 120 / 116 | 4 | 1.079 ms | 216 / 212 |
+
+Complete-text SES accounts for about 77% of text SES time in the control and
+83% in the baseline. The weak target is roughly even: about 48% important-text
+and 52% complete-text. Complete-text inputs are larger in all three cases, but
+input length alone does not explain the control's much larger complete-text
+time because SES cost also depends on edit structure. The next profiling
+question is which of the four complete-text calls dominates and what its two
+sequence lengths and edit distance are. That per-call attribution should be
+measured before selecting a semantics-preserving fast path.
+
+### Slowest complete-text call follow-up
+
+A second profiling-only follow-up retained only the slowest complete-text call
+per process, recording its stable 1-based call index, duration, two sequence
+lengths, and exact insert/delete distance. It again used one warmup and nine
+measured runs. The rebuilt binary SHA-256 was
+`ddc66532c2ca117d07cddaaa9c5ad0cbaf371b1c2147cd577da943c1816220f9`.
+
+| Case | Complete SES total | Slowest call | Share | Repeated winner | Winner terms (original / modified) | Edit distance |
+|---|---:|---:|---:|---|---:|---:|
+| weak target | 24.439 ms | 11.907 ms | 49% | calls 3 and 4 alternated | 1,464 / 12 or 1,462 / 10 | 1,452 |
+| size-matched strong control | 77.891 ms | 20.008 ms | 26% | call 2 won 6 of 9 | 10 / 1,004 | 994 |
+| small baseline | 0.504 ms | 0.146 ms | 29% | call 3 won 7 of 9 | 98 / 12 | 86 |
+
+No single complete-text comparison explains the cost. In the control, even the
+largest call is only about one quarter of complete-text time, so the cost is
+distributed across all four calls. In the weak target, two nearly equal calls
+alternate as the maximum and together account for most complete-text time. The
+repeatedly slow comparisons are highly unbalanced and have edit distances close
+to the longer sequence length. The next profiling question is therefore not
+which file pair is anomalous, but which SES algorithm path handles these
+highly unbalanced, high-distance sequences and how its work scales with
+sequence length and edit distance.
 
 ## Pipeline and cost model
 

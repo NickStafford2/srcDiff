@@ -21,7 +21,8 @@ enum class profile_phase {
   move_detection,
   change_matcher,
   nesting,
-  text_ses,
+  text_ses_important,
+  text_ses_complete,
   syntax_ses
 };
 
@@ -51,7 +52,14 @@ public:
       case profile_phase::move_detection: move_detection_ms_ += milliseconds; break;
       case profile_phase::change_matcher: change_matcher_ms_ += milliseconds; break;
       case profile_phase::nesting: nesting_ms_ += milliseconds; break;
-      case profile_phase::text_ses: text_ses_ms_ += milliseconds; break;
+      case profile_phase::text_ses_important:
+        text_ses_ms_ += milliseconds;
+        text_ses_important_ms_ += milliseconds;
+        break;
+      case profile_phase::text_ses_complete:
+        text_ses_ms_ += milliseconds;
+        text_ses_complete_ms_ += milliseconds;
+        break;
       case profile_phase::syntax_ses: syntax_ses_ms_ += milliseconds; break;
     }
   }
@@ -67,11 +75,44 @@ public:
     change_matrix_bytes_ += bytes;
     change_matrix_max_cells_ = std::max(change_matrix_max_cells_, cells);
   }
-  void text_ses_call(std::size_t original_terms, std::size_t modified_terms) {
+  void text_ses_call(bool important_only, std::size_t original_terms, std::size_t modified_terms) {
     ++text_ses_calls_;
     text_ses_original_terms_ += original_terms;
     text_ses_modified_terms_ += modified_terms;
     text_ses_max_cells_ = std::max(text_ses_max_cells_, original_terms * modified_terms);
+    if(important_only) {
+      ++text_ses_important_calls_;
+      text_ses_important_original_terms_ += original_terms;
+      text_ses_important_modified_terms_ += modified_terms;
+      text_ses_important_max_cells_ =
+        std::max(text_ses_important_max_cells_, original_terms * modified_terms);
+    } else {
+      ++text_ses_complete_calls_;
+      text_ses_complete_original_terms_ += original_terms;
+      text_ses_complete_modified_terms_ += modified_terms;
+      text_ses_complete_max_cells_ =
+        std::max(text_ses_complete_max_cells_, original_terms * modified_terms);
+    }
+  }
+  void finish_text_ses(bool important_only,
+                       std::size_t original_terms,
+                       std::size_t modified_terms,
+                       std::size_t edit_distance,
+                       clock::duration elapsed) {
+    add(important_only ? profile_phase::text_ses_important
+                       : profile_phase::text_ses_complete,
+        elapsed);
+    if(important_only) return;
+
+    const double milliseconds =
+      std::chrono::duration<double, std::milli>(elapsed).count();
+    if(milliseconds <= text_ses_complete_max_ms_) return;
+
+    text_ses_complete_max_ms_ = milliseconds;
+    text_ses_complete_max_call_ = text_ses_complete_calls_;
+    text_ses_complete_max_original_terms_ = original_terms;
+    text_ses_complete_max_modified_terms_ = modified_terms;
+    text_ses_complete_max_edit_distance_ = edit_distance;
   }
   void syntax_ses_call() { ++syntax_ses_calls_; }
   void measure_cache_hit() { ++measure_cache_hits_; }
@@ -100,6 +141,8 @@ public:
               << "profile.delta.change_matcher_ms=" << change_matcher_ms_ << '\n'
               << "profile.delta.nesting_ms=" << nesting_ms_ << '\n'
               << "profile.delta.text_ses_ms=" << text_ses_ms_ << '\n'
+              << "profile.delta.text_ses_important_ms=" << text_ses_important_ms_ << '\n'
+              << "profile.delta.text_ses_complete_ms=" << text_ses_complete_ms_ << '\n'
               << "profile.delta.syntax_ses_ms=" << syntax_ses_ms_ << '\n'
               << "profile.delta.top_level_original=" << top_level_original_ << '\n'
               << "profile.delta.top_level_modified=" << top_level_modified_ << '\n'
@@ -111,6 +154,19 @@ public:
               << "profile.delta.text_ses_original_terms=" << text_ses_original_terms_ << '\n'
               << "profile.delta.text_ses_modified_terms=" << text_ses_modified_terms_ << '\n'
               << "profile.delta.text_ses_max_cells=" << text_ses_max_cells_ << '\n'
+              << "profile.delta.text_ses_important_calls=" << text_ses_important_calls_ << '\n'
+              << "profile.delta.text_ses_important_original_terms=" << text_ses_important_original_terms_ << '\n'
+              << "profile.delta.text_ses_important_modified_terms=" << text_ses_important_modified_terms_ << '\n'
+              << "profile.delta.text_ses_important_max_cells=" << text_ses_important_max_cells_ << '\n'
+              << "profile.delta.text_ses_complete_calls=" << text_ses_complete_calls_ << '\n'
+              << "profile.delta.text_ses_complete_original_terms=" << text_ses_complete_original_terms_ << '\n'
+              << "profile.delta.text_ses_complete_modified_terms=" << text_ses_complete_modified_terms_ << '\n'
+              << "profile.delta.text_ses_complete_max_cells=" << text_ses_complete_max_cells_ << '\n'
+              << "profile.delta.text_ses_complete_max_ms=" << text_ses_complete_max_ms_ << '\n'
+              << "profile.delta.text_ses_complete_max_call=" << text_ses_complete_max_call_ << '\n'
+              << "profile.delta.text_ses_complete_max_original_terms=" << text_ses_complete_max_original_terms_ << '\n'
+              << "profile.delta.text_ses_complete_max_modified_terms=" << text_ses_complete_max_modified_terms_ << '\n'
+              << "profile.delta.text_ses_complete_max_edit_distance=" << text_ses_complete_max_edit_distance_ << '\n'
               << "profile.delta.syntax_ses_calls=" << syntax_ses_calls_ << '\n'
               << "profile.delta.measure_cache_hits=" << measure_cache_hits_ << '\n'
               << "profile.delta.measure_cache_misses=" << measure_cache_misses_ << '\n'
@@ -130,6 +186,8 @@ private:
   double change_matcher_ms_ = 0.0;
   double nesting_ms_ = 0.0;
   double text_ses_ms_ = 0.0;
+  double text_ses_important_ms_ = 0.0;
+  double text_ses_complete_ms_ = 0.0;
   double syntax_ses_ms_ = 0.0;
   std::size_t files_processed_ = 0;
   std::size_t top_level_original_ = 0;
@@ -142,6 +200,19 @@ private:
   std::size_t text_ses_original_terms_ = 0;
   std::size_t text_ses_modified_terms_ = 0;
   std::size_t text_ses_max_cells_ = 0;
+  std::size_t text_ses_important_calls_ = 0;
+  std::size_t text_ses_important_original_terms_ = 0;
+  std::size_t text_ses_important_modified_terms_ = 0;
+  std::size_t text_ses_important_max_cells_ = 0;
+  std::size_t text_ses_complete_calls_ = 0;
+  std::size_t text_ses_complete_original_terms_ = 0;
+  std::size_t text_ses_complete_modified_terms_ = 0;
+  std::size_t text_ses_complete_max_cells_ = 0;
+  double text_ses_complete_max_ms_ = 0.0;
+  std::size_t text_ses_complete_max_call_ = 0;
+  std::size_t text_ses_complete_max_original_terms_ = 0;
+  std::size_t text_ses_complete_max_modified_terms_ = 0;
+  std::size_t text_ses_complete_max_edit_distance_ = 0;
   std::size_t syntax_ses_calls_ = 0;
   std::size_t measure_cache_hits_ = 0;
   std::size_t measure_cache_misses_ = 0;

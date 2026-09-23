@@ -179,12 +179,21 @@ void text_measurer::compute() {
 
   }
 
-  if(profiler::instance().enabled()) {
-    profiler::instance().text_ses_call(set_original_text->size(), set_modified_text->size());
+  const bool profiling = profiler::instance().enabled();
+  profiler::clock::time_point profile_start;
+  if(profiling) {
+    profiler::instance().text_ses_call(important_only, set_original_text->size(), set_modified_text->size());
+    profile_start = profiler::clock::now();
   }
-  {
-    profile_timer timer(profile_phase::text_ses);
-    process_edit_script(shortest_edit_script_utility::compute(set_original_text, set_modified_text));
+
+  process_edit_script(shortest_edit_script_utility::compute(set_original_text, set_modified_text));
+
+  if(profiling) {
+    profiler::instance().finish_text_ses(important_only,
+                                         set_original_text->size(),
+                                         set_modified_text->size(),
+                                         difference(),
+                                         profiler::clock::now() - profile_start);
   }
 }
 
