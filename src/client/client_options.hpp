@@ -96,6 +96,7 @@ struct client_options {
   std::string output_filename;
   std::optional<std::string> files_from_name;
   std::optional<std::string> unit_filename;
+  bool profile = false;
 
   OPTION_TYPE flags;
   METHOD_TYPE methods;

@@ -19,6 +19,7 @@
 
 #include <shortest_edit_script_utility.hpp>
 #include <edit_corrector.hpp>
+#include <profile.hpp>
 
 #include <cstring>
 #include <methods.hpp>
@@ -42,13 +43,23 @@ differ::differ(std::shared_ptr<output_stream> out, const construct::construct_li
 void differ::output() {
 
   /** O(CND) */
-  ses::edit_list edits = shortest_edit_script_utility::compute(original, modified);
+  ses::edit_list edits;
+  {
+    profile_timer timer(profile_phase::structural_ses);
+    edits = shortest_edit_script_utility::compute(original, modified);
+  }
 
-  edit_corrector corrector(original, modified, edits);
-  corrector.correct();
+  {
+    profile_timer timer(profile_phase::edit_correction);
+    edit_corrector corrector(original, modified, edits);
+    corrector.correct();
+  }
 
   /** O(CD^2) */
-  move_detector::mark_moves(original, modified, edits);
+  {
+    profile_timer timer(profile_phase::move_detection);
+    move_detector::mark_moves(original, modified, edits);
+  }
 
   std::size_t last_diff_original = 0;
   std::size_t last_diff_modified = 0;

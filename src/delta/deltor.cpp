@@ -8,6 +8,7 @@
  */
 
 #include <deltor.hpp>
+#include <profile.hpp>
 
 namespace srcdiff {
 
@@ -32,6 +33,8 @@ srcml_unit* deltor::create(srcml_archive* archive, input_stream_manager& manager
 
   std::tie(output->nodes_original(), output->nodes_modified()) = manager.consume_streams();
 
+  profile_timer delta_timer(profile_phase::delta);
+
   output->prime();
 
   std::string srcdiff_str;
@@ -42,6 +45,10 @@ srcml_unit* deltor::create(srcml_archive* archive, input_stream_manager& manager
 
     unit original_unit(output->nodes_original(), output);
     unit modified_unit(output->nodes_modified(), output);
+
+    if(profiler::instance().enabled()) {
+      profiler::instance().top_level_constructs(original_unit.children().size(), modified_unit.children().size());
+    }
 
     differ diff(output, original_unit.children(), modified_unit.children());
     diff.output();

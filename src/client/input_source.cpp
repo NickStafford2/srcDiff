@@ -11,6 +11,7 @@
 
 #include <unified_view.hpp>
 #include <side_by_side_view.hpp>
+#include <profile.hpp>
 
 namespace srcdiff {
 
@@ -83,7 +84,10 @@ void input_source::file(const std::optional<std::string> & path_original,
 
   srcml_unit* srcdiff_unit = process_file(path_original, path_modified);
 
+  if(profiler::instance().enabled()) profiler::instance().file_processed();
+
   if(!view) {
+    profile_timer timer(profile_phase::archive_write);
     srcml_archive_write_unit(options.archive, srcdiff_unit);
   } else {
     std::string srcdiff = srcml_unit_get_srcml(srcdiff_unit);

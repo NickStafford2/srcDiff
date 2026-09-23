@@ -391,6 +391,12 @@ const client_options& process_command_line(int argc, char* argv[]) {
     "Silence messaging"
   );
 
+  general_group->add_flag(
+    "--profile",
+    options.profile,
+    "Report aggregate internal phase timings on standard error"
+  );
+
   CLI::Option_group * input_group = cli.add_option_group("Input");
 
   // currently, this takes priority over the positional file input argument if

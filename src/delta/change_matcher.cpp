@@ -13,6 +13,7 @@
 #include <text_measurer.hpp>
 #include <syntax_measurer.hpp>
 #include <constants.hpp>
+#include <profile.hpp>
 
 #include <cstring>
 
@@ -131,6 +132,8 @@ change_list change_matcher::create_linked_list(difference * differences) {
 /** loop O(RD^2) */
  change_list change_matcher::match_differences() {
 
+  profile_timer timer(profile_phase::change_matcher);
+
   /*
 
     Possible dynamic programming solution.  Sum similarities choosing left top or diagonal,
@@ -148,6 +151,10 @@ change_list change_matcher::create_linked_list(difference * differences) {
   int nlength = modified.size();
 
   size_t mem_size = olength * nlength * sizeof(difference);
+
+  if(profiler::instance().enabled()) {
+    profiler::instance().change_matrix(static_cast<std::size_t>(olength) * nlength, mem_size);
+  }
 
   difference * differences = (difference *)malloc(mem_size);
 

@@ -13,6 +13,7 @@
 #include <input_source_local.hpp>
 #include <input_source_svn.hpp>
 #include <input_source_git.hpp>
+#include <profile.hpp>
 
 #include <srcml.h>
 
@@ -24,6 +25,8 @@ srcdiff::input_source * next_input_source(const srcdiff::client_options & option
 
 int main(int argc, char* argv[]) {
 
+  const auto pipeline_start = srcdiff::profiler::clock::now();
+
   int exit_status = EXIT_SUCCESS;
 
   LIBXML_TEST_VERSION
@@ -33,6 +36,7 @@ int main(int argc, char* argv[]) {
 
   // process command-line arguments
   const srcdiff::client_options& options = srcdiff::process_command_line(argc, argv);
+  if(options.profile) srcdiff::profiler::instance().enable();
   srcML::name_spaces::namespace_registry.init(options.archive);
 
   bool is_view = options.is_option(srcdiff::OPTION_UNIFIED_VIEW | srcdiff::OPTION_SIDE_BY_SIDE_VIEW);
@@ -74,6 +78,8 @@ int main(int argc, char* argv[]) {
     srcml_archive_close(options.archive);
   }
   srcml_archive_free(options.archive);
+
+  srcdiff::profiler::instance().report(srcdiff::profiler::clock::now() - pipeline_start);
   
   return exit_status;
 

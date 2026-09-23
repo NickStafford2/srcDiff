@@ -12,6 +12,7 @@
 #include <shortest_edit_script_utility.hpp>
 #include <constants.hpp>
 #include <nodes.hpp>
+#include <profile.hpp>
 
 #include <algorithm>
 
@@ -73,7 +74,11 @@ void syntax_measurer::compute() {
   original_len = next_construct_list_original.size();
   modified_len = next_construct_list_modified.size();
 
-  process_edit_script(shortest_edit_script_utility::compute(next_construct_list_original, next_construct_list_modified));
+  if(profiler::instance().enabled()) profiler::instance().syntax_ses_call();
+  {
+    profile_timer timer(profile_phase::syntax_ses);
+    process_edit_script(shortest_edit_script_utility::compute(next_construct_list_original, next_construct_list_modified));
+  }
 }
 
 }

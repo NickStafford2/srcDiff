@@ -12,6 +12,7 @@
 
 #include <shortest_edit_script_utility.hpp>
 #include <constants.hpp>
+#include <profile.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -178,7 +179,13 @@ void text_measurer::compute() {
 
   }
 
-  process_edit_script(shortest_edit_script_utility::compute(set_original_text, set_modified_text));
+  if(profiler::instance().enabled()) {
+    profiler::instance().text_ses_call(set_original_text->size(), set_modified_text->size());
+  }
+  {
+    profile_timer timer(profile_phase::text_ses);
+    process_edit_script(shortest_edit_script_utility::compute(set_original_text, set_modified_text));
+  }
 }
 
 int text_measurer::number_match_beginning() {

@@ -14,6 +14,7 @@
 #include <text_measurer.hpp>
 #include <type_query.hpp>
 #include <whitespace_stream.hpp>
+#include <profile.hpp>
 
 #include <name.hpp>
 
@@ -341,6 +342,9 @@ std::tuple<std::vector<int>, int, int> nest_differ::check_nestable_inner(constru
 }
 
 nest_result nest_differ::check_nestable(construct::construct_list_view original, construct::construct_list_view modified) {
+
+  profile_timer timer(profile_phase::nesting);
+  if(profiler::instance().enabled()) profiler::instance().nesting_check();
 
   if(original.size() == 1 || modified.size() == 1) {
 

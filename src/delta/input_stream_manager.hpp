@@ -13,6 +13,7 @@
 #include <input_stream.hpp>
 #include <client_options.hpp>
 #include <nodes.hpp>
+#include <profile.hpp>
 
 #include <srcml.h>
 
@@ -40,12 +41,18 @@ public:
       if(streams.size() < 2) return std::pair<srcML::nodes, srcML::nodes>();
 
       std::pair<srcML::nodes, srcML::nodes> nodes;
-      std::thread thread_original(streams.front(), std::ref(converter), std::ref(nodes.first));
-      thread_original.join();
+      {
+        profile_timer timer(profile_phase::input_original);
+        std::thread thread_original(streams.front(), std::ref(converter), std::ref(nodes.first));
+        thread_original.join();
+      }
       streams.pop_front();
 
-      std::thread thread_modified(streams.front(), std::ref(converter), std::ref(nodes.second));
-      thread_modified.join();
+      {
+        profile_timer timer(profile_phase::input_modified);
+        std::thread thread_modified(streams.front(), std::ref(converter), std::ref(nodes.second));
+        thread_modified.join();
+      }
       streams.pop_front();
 
       return nodes;

@@ -9,3 +9,8 @@
 ## Build Instructions
 
 For details on compiling and installation, please refer to [BUILD.md](BUILD.md).
+
+## Development Notes
+
+- [Performance](doc/performance.md): current cost model, profiling metrics,
+  optimization experiments, and correctness constraints

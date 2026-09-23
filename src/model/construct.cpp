@@ -8,6 +8,7 @@
  */
 
 #include <construct.hpp>
+#include <profile.hpp>
 
 #include <construct_factory.hpp>
 #include <text_measurer.hpp>
@@ -298,7 +299,12 @@ std::shared_ptr<const construct> construct::find_best_descendent(const construct
 
 const std::shared_ptr<srcdiff::measurer> & construct::measure(const construct & modified) const {
     std::unordered_map<int, std::shared_ptr<srcdiff::measurer>>::const_iterator citr = measures.find(modified.start_position());
-    if(citr != measures.end()) return citr->second;
+    if(citr != measures.end()) {
+      if(srcdiff::profiler::instance().enabled()) srcdiff::profiler::instance().measure_cache_hit();
+      return citr->second;
+    }
+
+    if(srcdiff::profiler::instance().enabled()) srcdiff::profiler::instance().measure_cache_miss();
 
     std::shared_ptr<srcdiff::measurer> similarity = std::make_shared<srcdiff::text_measurer>(*this, modified);
     similarity->compute();

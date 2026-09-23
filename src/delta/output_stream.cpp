@@ -12,6 +12,7 @@
 #include <constants.hpp>
 #include <shortest_edit_script.h>
 #include <methods.hpp>
+#include <profile.hpp>
 
 #include <list>
 
@@ -99,6 +100,8 @@ void output_stream::reset() {
 
 void output_stream::start_unit(srcml_archive* archive, const std::string& language_string, const std::optional<std::string>& unit_filename, const std::optional<std::string>& unit_version) {
 
+  profile_timer timer(profile_phase::serialization);
+
   wstate->unit = srcml_unit_create(archive);
  
   srcml_unit_set_language(wstate->unit, language_string.c_str());
@@ -114,7 +117,10 @@ void output_stream::end_unit() {
   static const std::shared_ptr<srcML::node> flush = std::make_shared<srcML::node>(srcML::node_type::TEXT, "text");
   output_node(flush, COMMON);
 
-  srcml_write_end_unit(wstate->unit);
+  {
+    profile_timer timer(profile_phase::serialization);
+    srcml_write_end_unit(wstate->unit);
+  }
 }
 
 srcml_unit* output_stream::get_unit() {
@@ -411,6 +417,8 @@ void output_stream::output_node(const srcML::node & node) {
 void output_stream::output_node_inner(const srcML::node & node) {
 
   if(node.is_temporary()) return;
+
+  profile_timer timer(profile_phase::serialization);
 
   switch (node.get_type()) {
   case srcML::node_type::START:
