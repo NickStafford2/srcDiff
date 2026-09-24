@@ -158,6 +158,13 @@ int compute_middle_snake_profiled(const void * sequence_one, int sequence_one_st
   unsigned int paths_length = center * 2 + 1;
 
   // allocate arrays to record furthest reaching paths
+  if(profile) {
+    ++profile->linear_middle_snake_calls;
+    profile->linear_allocated_bytes += 2 * sizeof(struct point) * paths_length;
+    profile->search_allocations += 2;
+    profile->search_allocated_bytes += 2 * sizeof(struct point) * paths_length;
+  }
+  if(profile && profile->record_event) profile->record_event(profile->context, SES_PROFILE_SEARCH_SETUP_BEGIN);
   struct point * forward_paths = (struct point *)malloc(sizeof(struct point) * paths_length);
   size_t path_pos;
   struct point start_point = { sequence_one_start, sequence_two_start };
@@ -170,6 +177,7 @@ int compute_middle_snake_profiled(const void * sequence_one, int sequence_one_st
   for(path_pos = 0; path_pos < paths_length; ++path_pos) {
     reverse_paths[path_pos] = end_point;
   }
+  if(profile && profile->record_event) profile->record_event(profile->context, SES_PROFILE_SEARCH_SETUP_END);
 
   points[0] = start_point;
   points[1] = end_point;

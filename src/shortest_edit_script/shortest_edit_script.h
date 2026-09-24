@@ -32,16 +32,27 @@ struct edit_t {
 };
 
 enum ses_profile_event {
+  SES_PROFILE_SEARCH_SETUP_BEGIN,
+  SES_PROFILE_SEARCH_SETUP_END,
   SES_PROFILE_RECONSTRUCTION_BEGIN,
   SES_PROFILE_RECONSTRUCTION_END
 };
 
 struct ses_profile {
-  // Called around explicit edit-chain reconstruction; may be NULL.
+  // Called around measured search setup and reconstruction; may be NULL.
   void (*record_event)(void * context, enum ses_profile_event event);
   void * context;
   // Caller initializes this counter to zero.
   unsigned long frontier_steps;
+  unsigned long comparisons;
+  unsigned long search_allocations;
+  unsigned long search_allocated_bytes;
+  unsigned long linear_middle_snake_calls;
+  unsigned long linear_allocated_bytes;
+  unsigned long quadratic_calls;
+  unsigned long quadratic_base_allocated_bytes;
+  unsigned long quadratic_edit_block_allocations;
+  unsigned long quadratic_edit_block_allocated_bytes;
 };
 
 /*

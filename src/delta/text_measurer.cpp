@@ -22,16 +22,27 @@ namespace srcdiff {
 namespace {
 
 struct ses_profile_timing {
+  profiler::clock::duration search_setup{};
   profiler::clock::duration reconstruction{};
+  profiler::clock::time_point search_setup_start;
   profiler::clock::time_point reconstruction_start;
 };
 
 void record_ses_profile_event(void * context, enum ses_profile_event event) {
   auto& timing = *static_cast<ses_profile_timing *>(context);
-  if(event == SES_PROFILE_RECONSTRUCTION_BEGIN) {
-    timing.reconstruction_start = profiler::clock::now();
-  } else {
-    timing.reconstruction += profiler::clock::now() - timing.reconstruction_start;
+  switch(event) {
+    case SES_PROFILE_SEARCH_SETUP_BEGIN:
+      timing.search_setup_start = profiler::clock::now();
+      break;
+    case SES_PROFILE_SEARCH_SETUP_END:
+      timing.search_setup += profiler::clock::now() - timing.search_setup_start;
+      break;
+    case SES_PROFILE_RECONSTRUCTION_BEGIN:
+      timing.reconstruction_start = profiler::clock::now();
+      break;
+    case SES_PROFILE_RECONSTRUCTION_END:
+      timing.reconstruction += profiler::clock::now() - timing.reconstruction_start;
+      break;
   }
 }
 
@@ -202,7 +213,7 @@ void text_measurer::compute() {
   profiler::clock::time_point ses_start;
   profiler::clock::duration ses_elapsed{};
   ses_profile_timing ses_timing;
-  struct ses_profile ses_profile_data = { record_ses_profile_event, &ses_timing, 0 };
+  struct ses_profile ses_profile_data = { record_ses_profile_event, &ses_timing };
   if(profiling) {
     profiler::instance().text_ses_call(important_only, set_original_text->size(), set_modified_text->size());
     profile_start = profiler::clock::now();
@@ -225,8 +236,18 @@ void text_measurer::compute() {
                                          difference(),
                                          profiler::clock::now() - profile_start,
                                          search_elapsed,
+                                         ses_timing.search_setup,
                                          ses_timing.reconstruction,
-                                         ses_profile_data.frontier_steps);
+                                         ses_profile_data.frontier_steps,
+                                         ses_profile_data.comparisons,
+                                         ses_profile_data.search_allocations,
+                                         ses_profile_data.search_allocated_bytes,
+                                         ses_profile_data.linear_middle_snake_calls,
+                                         ses_profile_data.linear_allocated_bytes,
+                                         ses_profile_data.quadratic_calls,
+                                         ses_profile_data.quadratic_base_allocated_bytes,
+                                         ses_profile_data.quadratic_edit_block_allocations,
+                                         ses_profile_data.quadratic_edit_block_allocated_bytes);
   }
 }
 

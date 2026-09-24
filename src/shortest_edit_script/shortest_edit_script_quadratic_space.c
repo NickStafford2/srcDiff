@@ -34,6 +34,16 @@ int shortest_edit_script_inner_profiled(const void * sequence_one, int sequence_
 
   int max_diagonals = 2 * max_distance + 1;
 
+  if(profile) {
+    ++profile->quadratic_calls;
+    profile->quadratic_base_allocated_bytes +=
+      sizeof(struct point) * max_diagonals + 2 * sizeof(struct edit_t *) * max_diagonals;
+    profile->search_allocations += 3;
+    profile->search_allocated_bytes +=
+      sizeof(struct point) * max_diagonals + 2 * sizeof(struct edit_t *) * max_diagonals;
+  }
+  if(profile && profile->record_event) profile->record_event(profile->context, SES_PROFILE_SEARCH_SETUP_BEGIN);
+
   // last row with edit distance for each diagonal
   struct point * last_distance = (struct point *)calloc(max_diagonals, sizeof(struct point));
 
@@ -46,10 +56,12 @@ int shortest_edit_script_inner_profiled(const void * sequence_one, int sequence_
   struct edit_t ** script = (struct edit_t **)calloc(max_diagonals, sizeof(struct edit_t *));
   if(script == NULL) {
 
+    if(profile && profile->record_event) profile->record_event(profile->context, SES_PROFILE_SEARCH_SETUP_END);
     (*edit_script) = NULL;
     return -2;
 
   }
+  if(profile && profile->record_event) profile->record_event(profile->context, SES_PROFILE_SEARCH_SETUP_END);
 
   // initialization, slide 0 along 0 diagonal and find 1st edit
   int column = sequence_one_start;
@@ -88,7 +100,16 @@ int shortest_edit_script_inner_profiled(const void * sequence_one, int sequence_
       int edit = num_edits % (max_distance + 1);
 
       if(edit == 0) {
+        if(profile) {
+          ++profile->quadratic_edit_block_allocations;
+          profile->quadratic_edit_block_allocated_bytes +=
+            sizeof(struct edit_t) * (max_distance + 1);
+          ++profile->search_allocations;
+          profile->search_allocated_bytes += sizeof(struct edit_t) * (max_distance + 1);
+        }
+        if(profile && profile->record_event) profile->record_event(profile->context, SES_PROFILE_SEARCH_SETUP_BEGIN);
         if((edit_pointers[edit_array] = (struct edit_t *)calloc(max_distance + 1, sizeof(struct edit_t))) == NULL) {
+          if(profile && profile->record_event) profile->record_event(profile->context, SES_PROFILE_SEARCH_SETUP_END);
 
           // clean allocates
           int i;
@@ -102,6 +123,7 @@ int shortest_edit_script_inner_profiled(const void * sequence_one, int sequence_
           return -1;
 
         }
+        if(profile && profile->record_event) profile->record_event(profile->context, SES_PROFILE_SEARCH_SETUP_END);
       }
 
       int diagonal_pos = diagonal + center;

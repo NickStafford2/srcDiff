@@ -18,7 +18,8 @@ detection, change matching, nesting, and text/syntax shortest-edit scripts.
 Text SES metrics retain an aggregate and also separate important-text
 measurements from complete-text measurements. The profiler further separates
 SES search/frontier work from explicit edit-script reconstruction and counts
-the frontier diagonals examined.
+the frontier diagonals examined. Additional counters attribute search setup,
+comparison calls, allocation calls, and cumulative requested bytes.
 
 The profiler also reports scale counters for files, top-level constructs,
 change matrices, measurement-cache use, shortest-edit-script inputs, and
@@ -173,6 +174,177 @@ phase, so the diagonal count alone does not explain runtime. The next narrow
 question is which part of frontier processing accounts for that per-step gap:
 element comparison and diagonal sliding, or frontier allocation and update
 overhead. That distinction should be measured before changing the algorithm.
+
+### Frontier-detail follow-up
+
+A fourth profiling-only follow-up measured search-storage allocation and
+initialization directly, counted text comparisons and allocation requests, and
+treated the remaining search time as traversal. Traversal includes frontier
+updates, diagonal sliding, cleanup, and edit-node construction during hybrid
+recursion. The allocation byte count is cumulative requested memory, not peak
+resident memory. This split avoids clock reads inside the frontier loops; the
+comparison callback adds only a counter increment when profiling is enabled.
+
+The same one-warmup-plus-nine-run procedure produced the following medians.
+The rebuilt binary SHA-256 was
+`a8a184a395791ee980a692d86fce110f4fd64a85f316ecfe4c6e386f03da5ce4`.
+
+| Case | Complete search | Setup | Traversal | Frontier steps | Comparisons | Allocations | Requested bytes |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| weak target | 27.096 ms | 8.343 ms | 18.745 ms | 1,616,030 | 1,084 | 914 | 14,422,160 |
+| size-matched strong control | 76.182 ms | 52.342 ms | 23.940 ms | 1,954,334 | 740 | 1,986 | 94,140,000 |
+| small baseline | 0.491 ms | 0.210 ms | 0.257 ms | 14,794 | 272 | 180 | 734,880 |
+
+Text comparison does not explain the control's extra complete-text cost: the
+control made fewer comparisons than the weak case. Traversal was about 1.3
+times slower, broadly consistent with its 1.2 times as many frontier steps.
+Setup was over seven times slower, accompanied by about twice as many
+allocation calls and 6.5 times as many cumulatively requested bytes. Repeated
+allocation and zero-initialization in the quadratic-space leaves is therefore
+the best-supported explanation for most of the remaining gap.
+
+The next implementation question is whether the quadratic-space SES can reuse
+or more narrowly allocate its temporary frontier and edit storage while
+returning the identical shortest edit script. That should be designed and
+tested as a separate optimization change, not folded into the profiler.
+
+### Medium archive follow-up
+
+Two real srcMove changes were profiled to check whether the retained-case
+result extends to medium multi-file inputs. Commit `fcf1219f` is a mostly
+additive change (five C++ files, 525 insertions and 43 deletions); its parent is
+`e7863974`. Commit `e7863974` is a refactor (seven C++ files, 250 insertions and
+221 deletions); its parent is `b99da1a0`. Each comparison was run both over the
+complete 38-file `src/` tree and over only the changed files. The complete trees
+contained about 150--166 KB of source. The same profiler binary as the
+frontier-detail study was used.
+
+Each workload had one warmup followed by nine measured runs. The table contains
+medians. Profiled output was byte-identical across all nine runs and matched an
+unprofiled run; unprofiled standard error was empty. The two full archives were
+2,154,483 and 2,077,985 bytes respectively.
+
+| Change and input | Total | Input conversion | Delta | All text SES | Complete search | Archive write |
+|---|---:|---:|---:|---:|---:|---:|
+| `fcf1219f`, 38 files | 1,847.140 ms | 950.334 ms | 579.785 ms | 389.705 ms | 247.568 ms | 203.973 ms |
+| `fcf1219f`, 5 changed files | 740.607 ms | 215.841 ms | 457.610 ms | 388.413 ms | 246.975 ms | 38.559 ms |
+| `e7863974`, 38 files | 2,041.060 ms | 895.210 ms | 817.582 ms | 572.396 ms | 387.890 ms | 208.498 ms |
+| `e7863974`, 7 changed files | 1,136.340 ms | 296.748 ms | 726.817 ms | 575.625 ms | 390.220 ms | 58.275 ms |
+
+The unchanged files add conversion, structural differencing, serialization, and
+archive-writing cost, but do not materially change the text SES totals. Text SES
+accounts for 67--70% of delta time in the full archives and 79--85% when only
+changed files are supplied. It is therefore the leading measured delta
+operation on both real changes, but it is only about 21--28% of complete
+pipeline time for the full archives. The broader claim that text SES dominates
+all srcDiff execution does not hold for these archive runs.
+
+The complete-search split also varies materially with edit shape:
+
+| Change | Complete calls | Search | Setup | Traversal | Frontier steps | Comparisons | Allocations | Requested bytes |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `fcf1219f` | 58 | 247.568 ms | 12.627 ms | 234.881 ms | 5,807,930 | 1,788,098 | 1,325 | 28,578,992 |
+| `e7863974` | 270 | 387.890 ms | 89.255 ms | 298.404 ms | 5,668,740 | 2,442,106 | 7,267 | 201,343,000 |
+
+Setup is only 5% of complete search for the mostly additive change, where
+traversal dominates. It is 23% for the refactor and requests about 201 MB
+cumulatively. The synthetic control's setup-heavy result is therefore real but
+not universal; both setup and traversal remain plausible optimization targets,
+depending on workload.
+
+### srcML conversion share
+
+A narrow input timer around `converter.convert()` separates the libsrcml
+conversion from srcDiff's later XML-reader and node-graph materialization. It
+includes creation of the srcML unit, parsing through the input callbacks,
+serialization of the unit into the in-memory srcML buffer, and associated
+libsrcml archive setup and teardown. It excludes opening the input stream,
+reparsing that buffer with libxml2, building srcDiff nodes, and thread startup.
+The rebuilt binary SHA-256 was
+`62a7f2b06473e7c304eee545b08917b45d45b94be5b95e8b2feb8a04e9d65535`.
+
+One warmup and nine measured runs produced these medians:
+
+| Change and input | Total | Complete input phase | libsrcml conversion | libsrcml / total | libsrcml / input |
+|---|---:|---:|---:|---:|---:|
+| `fcf1219f`, 38 files | 2,117.858 ms | 1,196.607 ms | 849.524 ms | 40.1% | 71.0% |
+| `fcf1219f`, 5 changed files | 783.563 ms | 224.637 ms | 152.723 ms | 19.5% | 68.0% |
+| `fcf1219f`, `region_filter.cpp` only | 594.356 ms | 143.212 ms | 88.906 ms | 15.0% | 62.1% |
+| `e7863974`, 38 files | 2,113.376 ms | 944.430 ms | 640.171 ms | 30.3% | 67.8% |
+| `e7863974`, 7 changed files | 1,162.523 ms | 308.586 ms | 211.712 ms | 18.2% | 68.6% |
+
+On these runs, libsrcml accounts for about 30--40% of complete archive time
+and 18--20% of changed-files-only time. It consistently accounts for about
+68--71% of srcDiff's input phase; XML reparsing, node construction, file open,
+and thread overhead make up the remainder. Eliminating all libsrcml cost would
+therefore have a theoretical ceiling of about 1.2--1.7 times on these
+workloads, while eliminating duplicate conversion for unchanged pairs targets
+the full-archive cases specifically.
+
+For an intentionally imperfect CLI comparison, unprofiled srcDiff and
+standalone srcML were each run after one warmup for nine trials over the same
+two source trees. Both wrote their XML archives to `/dev/null`, and srcML used
+one worker to match srcDiff's sequential conversion behavior.
+
+| Change and input | srcDiff wall | srcML wall | srcDiff / srcML |
+|---|---:|---:|---:|
+| `fcf1219f`, 38 files | 2,073.644 ms | 688.866 ms | 3.01 times |
+| `fcf1219f`, 5 changed files | 896.145 ms | 205.000 ms | 4.37 times |
+| `fcf1219f`, `region_filter.cpp` only | 655.423 ms | 145.944 ms | 4.49 times |
+| `e7863974`, 38 files | 2,414.787 ms | 623.807 ms | 3.87 times |
+| `e7863974`, 7 changed files | 1,208.868 ms | 237.238 ms | 5.10 times |
+
+This comparison is descriptive, not an efficiency verdict: srcML only creates
+the source representation, whereas srcDiff converts both sides, builds its own
+graphs, computes a semantic diff, and emits a substantially different archive.
+The CLI timing also includes process and archive overhead and showed wider
+run-to-run variation than the internal phase measurements.
+
+The allocation mechanism gives a strong explanation for the synthetic
+control's 94 MB result. The quadratic routine allocates three zero-initialized
+arrays sized from the two sequence lengths, then allocates blocks of
+`edit_t` records while expanding the frontier. The linear middle-snake routine
+instead allocates two point arrays per recursive call and does not retain an
+edit record for every explored state. The hybrid threshold is 1,000. At entry
+it is applied to the combined unmatched-tail length after removing a common
+prefix; during hybrid recursion it is applied to the parent edit distance when
+choosing how to solve the two children.
+
+### SES allocation-path follow-up
+
+A final attribution split counted linear middle-snake storage, quadratic base
+storage, and quadratic edit blocks separately. It adds counters only at
+allocation sites, with no additional clock reads or hot-loop work. The rebuilt
+binary SHA-256 was
+`d5e7c7d92e9ec5913a0ca7cb6905355a5573d47d2d813d12ee006f8c74b6a6c6`.
+The counts and byte totals are deterministic, so one run of each previously
+measured workload was sufficient for this attribution check.
+
+| Complete-text workload | Linear calls / bytes | Quadratic calls / base bytes | Edit blocks / bytes | Total allocations / bytes |
+|---|---:|---:|---:|---:|
+| weak target | 4 / 279,488 | 6 / 85,968 | 888 / 14,056,704 | 914 / 14,422,160 |
+| size-matched control | 0 / 0 | 4 / 190,272 | 1,974 / 93,949,728 | 1,986 / 94,140,000 |
+| small baseline | 0 / 0 | 4 / 16,992 | 168 / 717,888 | 180 / 734,880 |
+| `fcf1219f` changed files | 6 / 1,035,680 | 60 / 599,136 | 1,133 / 26,944,176 | 1,325 / 28,578,992 |
+| `e7863974` changed files | 13 / 2,190,512 | 281 / 2,966,328 | 6,398 / 196,185,792 | 7,267 / 201,342,632 |
+
+Quadratic edit blocks account for 99.8% of the control's requested bytes and
+97.5% of the weak case's. The control runs all four complete-text comparisons
+directly through the quadratic routine. The weak case first makes four linear
+middle-snake calls, splits the large unmatched tails, and reaches six smaller
+quadratic leaves. The control therefore allocates both more edit blocks and
+larger blocks. This directly confirms that reusable linear frontier arrays or
+the three quadratic base arrays cannot materially reduce the reported 94 MB.
+
+The medium refactor shows the same mechanism at a larger aggregate scale:
+quadratic edit blocks account for 196.2 MB of its 201.3 MB. Buffer reuse could
+reduce allocator calls, and replacing zero-initialized edit blocks with fully
+initialized-on-write storage might reduce setup time, but neither changes the
+amount of retained quadratic search state. A deeper change to quadratic path
+reconstruction or to the hybrid selection policy is required to materially
+reduce cumulative storage. Either can change shortest-script tie-breaking, so
+the next optimization must first define and test exact XML equivalence across
+the complete suite and these retained workloads.
 
 ## Pipeline and cost model
 

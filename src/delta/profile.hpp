@@ -13,6 +13,7 @@ namespace srcdiff {
 enum class profile_phase {
   input_original,
   input_modified,
+  input_srcml,
   delta,
   serialization,
   archive_write,
@@ -44,6 +45,7 @@ public:
     switch(phase) {
       case profile_phase::input_original: input_original_ms_ += milliseconds; break;
       case profile_phase::input_modified: input_modified_ms_ += milliseconds; break;
+      case profile_phase::input_srcml: input_srcml_ms_ += milliseconds; break;
       case profile_phase::delta: delta_inclusive_ms_ += milliseconds; break;
       case profile_phase::serialization: serialization_ms_ += milliseconds; break;
       case profile_phase::archive_write: archive_write_ms_ += milliseconds; break;
@@ -100,8 +102,18 @@ public:
                        std::size_t edit_distance,
                        clock::duration elapsed,
                        clock::duration search_elapsed,
+                       clock::duration search_setup_elapsed,
                        clock::duration reconstruction_elapsed,
-                       std::size_t frontier_steps) {
+                       std::size_t frontier_steps,
+                       std::size_t comparisons,
+                       std::size_t search_allocations,
+                       std::size_t search_allocated_bytes,
+                       std::size_t linear_middle_snake_calls,
+                       std::size_t linear_allocated_bytes,
+                       std::size_t quadratic_calls,
+                       std::size_t quadratic_base_allocated_bytes,
+                       std::size_t quadratic_edit_block_allocations,
+                       std::size_t quadratic_edit_block_allocated_bytes) {
     add(important_only ? profile_phase::text_ses_important
                        : profile_phase::text_ses_complete,
         elapsed);
@@ -109,14 +121,34 @@ public:
       std::chrono::duration<double, std::milli>(search_elapsed).count();
     const double reconstruction_milliseconds =
       std::chrono::duration<double, std::milli>(reconstruction_elapsed).count();
+    const double search_setup_milliseconds =
+      std::chrono::duration<double, std::milli>(search_setup_elapsed).count();
+    const double search_traversal_milliseconds =
+      std::max(0.0, search_milliseconds - search_setup_milliseconds);
     if(important_only) {
       text_ses_important_search_ms_ += search_milliseconds;
       text_ses_important_reconstruction_ms_ += reconstruction_milliseconds;
       text_ses_important_frontier_steps_ += frontier_steps;
+      text_ses_important_search_setup_ms_ += search_setup_milliseconds;
+      text_ses_important_search_traversal_ms_ += search_traversal_milliseconds;
+      text_ses_important_comparisons_ += comparisons;
+      text_ses_important_search_allocations_ += search_allocations;
+      text_ses_important_search_allocated_bytes_ += search_allocated_bytes;
     } else {
       text_ses_complete_search_ms_ += search_milliseconds;
       text_ses_complete_reconstruction_ms_ += reconstruction_milliseconds;
       text_ses_complete_frontier_steps_ += frontier_steps;
+      text_ses_complete_search_setup_ms_ += search_setup_milliseconds;
+      text_ses_complete_search_traversal_ms_ += search_traversal_milliseconds;
+      text_ses_complete_comparisons_ += comparisons;
+      text_ses_complete_search_allocations_ += search_allocations;
+      text_ses_complete_search_allocated_bytes_ += search_allocated_bytes;
+      text_ses_complete_linear_middle_snake_calls_ += linear_middle_snake_calls;
+      text_ses_complete_linear_allocated_bytes_ += linear_allocated_bytes;
+      text_ses_complete_quadratic_calls_ += quadratic_calls;
+      text_ses_complete_quadratic_base_allocated_bytes_ += quadratic_base_allocated_bytes;
+      text_ses_complete_quadratic_edit_block_allocations_ += quadratic_edit_block_allocations;
+      text_ses_complete_quadratic_edit_block_allocated_bytes_ += quadratic_edit_block_allocated_bytes;
     }
     if(important_only) return;
 
@@ -147,6 +179,7 @@ public:
               << "profile.pipeline.total_ms=" << total_ms << '\n'
               << "profile.input.original_ms=" << input_original_ms_ << '\n'
               << "profile.input.modified_ms=" << input_modified_ms_ << '\n'
+              << "profile.input.srcml_ms=" << input_srcml_ms_ << '\n'
               << "profile.delta.total_ms=" << delta_ms << '\n'
               << "profile.serialization_ms=" << serialization_ms_ << '\n'
               << "profile.archive_write_ms=" << archive_write_ms_ << '\n'
@@ -162,9 +195,25 @@ public:
               << "profile.delta.text_ses_important_search_ms=" << text_ses_important_search_ms_ << '\n'
               << "profile.delta.text_ses_important_reconstruction_ms=" << text_ses_important_reconstruction_ms_ << '\n'
               << "profile.delta.text_ses_important_frontier_steps=" << text_ses_important_frontier_steps_ << '\n'
+              << "profile.delta.text_ses_important_search_setup_ms=" << text_ses_important_search_setup_ms_ << '\n'
+              << "profile.delta.text_ses_important_search_traversal_ms=" << text_ses_important_search_traversal_ms_ << '\n'
+              << "profile.delta.text_ses_important_comparisons=" << text_ses_important_comparisons_ << '\n'
+              << "profile.delta.text_ses_important_search_allocations=" << text_ses_important_search_allocations_ << '\n'
+              << "profile.delta.text_ses_important_search_allocated_bytes=" << text_ses_important_search_allocated_bytes_ << '\n'
               << "profile.delta.text_ses_complete_search_ms=" << text_ses_complete_search_ms_ << '\n'
               << "profile.delta.text_ses_complete_reconstruction_ms=" << text_ses_complete_reconstruction_ms_ << '\n'
               << "profile.delta.text_ses_complete_frontier_steps=" << text_ses_complete_frontier_steps_ << '\n'
+              << "profile.delta.text_ses_complete_search_setup_ms=" << text_ses_complete_search_setup_ms_ << '\n'
+              << "profile.delta.text_ses_complete_search_traversal_ms=" << text_ses_complete_search_traversal_ms_ << '\n'
+              << "profile.delta.text_ses_complete_comparisons=" << text_ses_complete_comparisons_ << '\n'
+              << "profile.delta.text_ses_complete_search_allocations=" << text_ses_complete_search_allocations_ << '\n'
+              << "profile.delta.text_ses_complete_search_allocated_bytes=" << text_ses_complete_search_allocated_bytes_ << '\n'
+              << "profile.delta.text_ses_complete_linear_middle_snake_calls=" << text_ses_complete_linear_middle_snake_calls_ << '\n'
+              << "profile.delta.text_ses_complete_linear_allocated_bytes=" << text_ses_complete_linear_allocated_bytes_ << '\n'
+              << "profile.delta.text_ses_complete_quadratic_calls=" << text_ses_complete_quadratic_calls_ << '\n'
+              << "profile.delta.text_ses_complete_quadratic_base_allocated_bytes=" << text_ses_complete_quadratic_base_allocated_bytes_ << '\n'
+              << "profile.delta.text_ses_complete_quadratic_edit_block_allocations=" << text_ses_complete_quadratic_edit_block_allocations_ << '\n'
+              << "profile.delta.text_ses_complete_quadratic_edit_block_allocated_bytes=" << text_ses_complete_quadratic_edit_block_allocated_bytes_ << '\n'
               << "profile.delta.syntax_ses_ms=" << syntax_ses_ms_ << '\n'
               << "profile.delta.top_level_original=" << top_level_original_ << '\n'
               << "profile.delta.top_level_modified=" << top_level_modified_ << '\n'
@@ -199,6 +248,7 @@ private:
   bool enabled_ = false;
   double input_original_ms_ = 0.0;
   double input_modified_ms_ = 0.0;
+  double input_srcml_ms_ = 0.0;
   double delta_inclusive_ms_ = 0.0;
   double serialization_ms_ = 0.0;
   double archive_write_ms_ = 0.0;
@@ -213,9 +263,25 @@ private:
   double text_ses_important_search_ms_ = 0.0;
   double text_ses_important_reconstruction_ms_ = 0.0;
   std::size_t text_ses_important_frontier_steps_ = 0;
+  double text_ses_important_search_setup_ms_ = 0.0;
+  double text_ses_important_search_traversal_ms_ = 0.0;
+  std::size_t text_ses_important_comparisons_ = 0;
+  std::size_t text_ses_important_search_allocations_ = 0;
+  std::size_t text_ses_important_search_allocated_bytes_ = 0;
   double text_ses_complete_search_ms_ = 0.0;
   double text_ses_complete_reconstruction_ms_ = 0.0;
   std::size_t text_ses_complete_frontier_steps_ = 0;
+  double text_ses_complete_search_setup_ms_ = 0.0;
+  double text_ses_complete_search_traversal_ms_ = 0.0;
+  std::size_t text_ses_complete_comparisons_ = 0;
+  std::size_t text_ses_complete_search_allocations_ = 0;
+  std::size_t text_ses_complete_search_allocated_bytes_ = 0;
+  std::size_t text_ses_complete_linear_middle_snake_calls_ = 0;
+  std::size_t text_ses_complete_linear_allocated_bytes_ = 0;
+  std::size_t text_ses_complete_quadratic_calls_ = 0;
+  std::size_t text_ses_complete_quadratic_base_allocated_bytes_ = 0;
+  std::size_t text_ses_complete_quadratic_edit_block_allocations_ = 0;
+  std::size_t text_ses_complete_quadratic_edit_block_allocated_bytes_ = 0;
   double syntax_ses_ms_ = 0.0;
   std::size_t files_processed_ = 0;
   std::size_t top_level_original_ = 0;

@@ -13,6 +13,7 @@
 #include <nodes.hpp>
 #include <converter.hpp>
 #include <client_options.hpp>
+#include <profile.hpp>
 
 #include <srcml.h>
 

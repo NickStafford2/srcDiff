@@ -36,7 +36,10 @@ srcML::nodes input_stream<T>::input_nodes(srcML::converter& converter) const {
 
   typename T::input_context* context = input.open(input_path->c_str());
 
-  converter.convert(archive, language_string, (void*)context, T::read, T::close);
+  {
+    profile_timer timer(profile_phase::input_srcml);
+    converter.convert(archive, language_string, (void*)context, T::read, T::close);
+  }
   return converter.create_nodes();
 
 }
